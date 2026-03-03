@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>L'M Collections</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <style>
+        :root { --serenity: #F7C8E0; --custard: #FFFACD; --pure-light: #FFFFFF; --white: #FFFFFF; --dark: #D02090; --success: #6A0DAD; --candy-blue: #6A0DAD; --candy-yellow: #FFD700; }
+        @keyframes popIn {0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; }}
+        @keyframes successPulse {0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(106,13,173,0.4); } 70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(106,13,173,0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(106,13,173,0); }}
+        @keyframes float {0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); }}
+        @keyframes spin {100% { transform: rotate(360deg); }}
+        @keyframes slideUp { from { bottom: -100px; opacity: 0; } to { bottom: 30px; opacity: 1; } }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { font-family: 'Fredoka', sans-serif; background-color: var(--custard); background-image: radial-gradient(var(--dark) 1px, transparent 1px); background-size: 20px 20px; margin: 0; padding: 15px; display: flex; justify-content: center; min-height: 100vh; color: var(--dark); }
+        .container { background: var(--pure-light); padding: 2rem; border-radius: 50px; box-shadow: 0px 15px 0px var(--dark), 0px 20px 30px rgba(0,0,0,0.1); width: 100%; max-width: 500px; border: 6px solid var(--dark); margin-bottom: 25px; display: none; animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: relative; }
+        .active { display: block; }
+        h1 { text-align: center; color: var(--dark); font-size: 3rem; margin-bottom: 20px; font-weight: 700; text-shadow: 4px 4px 0px var(--white); letter-spacing: -1px; animation: float 3s ease-in-out infinite; white-space: nowrap; }
+        h2 { font-size: 1.8rem; margin-top: 0; color: var(--dark); }
+        input, select, textarea { width: 100%; padding: 15px; margin: 10px 0; border: 3px solid var(--dark); border-radius: 20px; background: var(--white); font-weight: 500; font-family: inherit; color: var(--dark); transition: 0.3s; }
+        .btn-main { background: var(--dark); color: var(--white); border: 4px solid var(--white); padding: 18px; border-radius: 30px; font-weight: 700; font-size: 1.2rem; cursor: pointer; width: 100%; margin-bottom: 15px; transition: 0.3s; box-shadow: 0px 6px 0px #6F7849; }
+        .btn-main:hover { transform: scale(1.02) translateY(-2px); box-shadow: 0px 10px 0px #6F7849; }
+        .btn-main:active { transform: translateY(4px); box-shadow: 0px 2px 0px #6F7849; }
+        .btn-secondary { background: var(--serenity); color: var(--dark); box-shadow: 0px 6px 0px #E8B8C1; }
+        .item-card { background: var(--white); border: 5px solid var(--dark); border-radius: 40px; padding: 20px; margin-bottom: 25px; box-shadow: 10px 10px 0px var(--dark); text-align: center; }
+        .item-card img { width: 70%; aspect-ratio: 1/1; object-fit: cover; border-radius: 30px; border: 5px solid var(--pure-light); margin: 0 auto 15px; display: block; }
+        .order-row { background: var(--white); border: 3px solid var(--dark); border-radius: 25px; padding: 18px; margin-bottom: 15px; box-shadow: 5px 5px 0px var(--dark); display: flex; align-items: center; }
+        .cart-thumbnail { width: 60px; height: 60px; border: 2px solid var(--dark); border-radius: 12px; object-fit: cover; margin-right: 12px; background: #fff; }
+        .magic-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(106, 13, 173, 0.4); backdrop-filter: blur(10px); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; font-weight: 700; }
+        .spinner { width: 80px; height: 80px; border: 8px solid var(--custard); border-top: 8px solid var(--serenity); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        .success-toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--dark); color: white; padding: 15px 30px; border-radius: 50px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); border: 4px solid var(--dark); display: none; animation: slideUp 0.5s ease forwards; z-index: 10001; }
+        label { font-weight: 700; color: var(--dark); font-size: 0.8rem; margin-left: 5px; display: block; text-align: left; }
+        #floating-cart-count { position:absolute; top:-5px; right:-5px; background:var(--dark); color:var(--white); font-size:10px; padding:2px 6px; border-radius:50%; border:2px solid var(--dark); }
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay" class="magic-overlay">
+        <div class="spinner"></div>
+        <div id="loading-text">Magic in progress... ✨</div>
+    </div>
+
+    <div id="error-modal" class="magic-overlay" style="background: rgba(255, 77, 109, 0.9);">
+        <div style="font-size: 3rem; margin-bottom: 20px;">🚫</div>
+        <div id="error-msg">Not Authorized! Check your login!</div>
+        <button class="btn-main" onclick="closeError()" style="margin-top: 20px; width: auto; padding: 10px 40px;">🍬 OKAY</button>
+    </div>
+
+    <div id="success-toast" class="success-toast">Candy magic... ✨</div>
+
+    <!-- Home Page -->
+    <div id="page-home" class="container active">
+        <h1>Thea Daz</h1>
+        <button class="btn-main" onclick="showPage('page-shop')">🍭 ENTER THE SHOP</button>
+        <button class="btn-main btn-secondary" onclick="showPage('page-admin-login')">👑 SWEET ADMIN</button>
+        <button class="btn-main btn-secondary" onclick="showPage('page-status')">📦 ORDER STATUS</button>
+    </div>
+
+    <!-- Shop Page -->
+    <div id="page-shop" class="container">
+        <h2>Thea Daz ✨</h2>
+        <div style="position:relative; margin-bottom: 15px;">
+            <button class="btn-main" onclick="showPage('page-cart')" style="margin-bottom:0;">🛒 <span id="floating-cart-count">0</span></button>
+        </div>
+        <select id="shop-category" onchange="loadProducts()">
+            <option value="All">All Categories</option>
+            <option>Tarot Sale 99</option>
+            <option>Tarot Sale 199</option>
+            <option>Tarot Sale Original Price</option>
+            <option>InSenso Sale</option>
+            <option>Candle Sale</option>
+        </select>
+        <input type="text" id="shop-search" placeholder="Search treats... 🍬" oninput="loadProducts()">
+        <div id="shop-items"></div>
+        <button class="btn-main btn-secondary" onclick="showPage('page-home')">🔙 BACK</button>
+    </div>
+
+    <!-- Basket Page -->
+    <div id="page-cart" class="container">
+        <h2>My Basket 🛒</h2>
+        <div id="cart-items"></div>
+        <div class="item-card">
+            <h3>TOTAL: ₱<span id="cart-total">0.00</span></h3>
+            <button class="btn-main" onclick="showPage('page-checkout')">💳 CHECKOUT</button>
+        </div>
+        <button class="btn-main btn-secondary" onclick="showPage('page-shop')">🔙 BACK</button>
+    </div>
+
+    <!-- Checkout Page -->
+    <div id="page-checkout" class="container">
+        <h2>Checkout ✨</h2>
+        <div id="checkout-summary" style="margin-bottom: 20px;"></div>
+
+        <!-- Static Tarot Forms -->
+        <h3 style="font-size: 1.2rem; margin-bottom: 10px;">Tarot Forms (Optional)</h3>
+        <p style="font-size: 0.7rem; color: var(--dark); margin-bottom: 15px;">Fill out up to 3 forms if needed. Leave blank if not applicable.</p>
+        <div id="tarot-forms-container">
+            <div class="item-card" style="padding: 15px; margin-bottom: 10px; border-radius: 20px; box-shadow: 5px 5px 0px var(--dark);">
+                <h4 style="margin:0 0 10px 0;">Form #1</h4>
+                <label>Name: <input type="text" id="tarot1-name"></label>
+                <label>Birthdate: <input type="date" id="tarot1-birthdate"></label>
+                <label>Question: <input type="text" id="tarot1-question"></label>
+            </div>
+            <div class="item-card" style="padding: 15px; margin-bottom: 10px; border-radius: 20px; box-shadow: 5px 5px 0px var(--dark);">
+                <h4 style="margin:0 0 10px 0;">Form #2</h4>
+                <label>Name: <input type="text" id="tarot2-name"></label>
+                <label>Birthdate: <input type="date" id="tarot2-birthdate"></label>
+                <label>Question: <input type="text" id="tarot2-question"></label>
+            </div>
+            <div class="item-card" style="padding: 15px; margin-bottom: 10px; border-radius: 20px; box-shadow: 5px 5px 0px var(--dark);">
+                <h4 style="margin:0 0 10px 0;">Form #3</h4>
+                <label>Name: <input type="text" id="tarot3-name"></label>
+                <label>Birthdate: <input type="date" id="tarot3-birthdate"></label>
+                <label>Question: <input type="text" id="tarot3-question"></label>
+            </div>
+        </div>
+
+        <h3>Customer Information ♡</h3>
+        <input type="text" id="cust-fullname" placeholder="Receiver’s Full Name">
+        <input type="text" id="cust-phone" placeholder="Phone Number">
+        <input type="text" id="cust-province" placeholder="Province">
+        <input type="text" id="cust-municipality" placeholder="Municipality">
+        <input type="text" id="cust-barangay" placeholder="Barangay">
+        <input type="text" id="cust-address" placeholder="Complete Address">
+        <input type="text" id="cust-zip" placeholder="ZIP Code">
+
+        <h3>Choose Payment Method</h3>
+        <select id="payment-method-select" onchange="updatePaymentDisplay()">
+            <option value="GCASH">GCASH</option>
+            <option value="GOTYME">GOTYME</option>
+            <option value="BDO">BDO PAY</option>
+        </select>
+
+        <div id="payment-qrs" style="margin: 20px 0;">
+            <div id="gcash-qr" style="display:none; text-align:center;">
+                <p style="font-weight:bold;">Scan to Pay via GCASH</p>
+                <img src="https://i.imgur.com/7fr2WfJ.jpeg" style="width:200px; border-radius:15px; border:3px solid var(--dark);">
+                <p style="font-size:0.7rem; word-break:break-all; margin-top:5px;">https://i.imgur.com/7fr2WfJ.jpeg</p>
+            </div>
+            <div id="gotyme-qr" style="display:none; text-align:center;">
+                <p style="font-weight:bold;">Scan to Pay via GOTYME</p>
+                <img src="https://i.imgur.com/VoSUphj.jpeg" style="width:200px; border-radius:15px; border:3px solid var(--dark);">
+                <p style="font-size:0.7rem; word-break:break-all; margin-top:5px;">https://i.imgur.com/VoSUphj.jpeg</p>
+            </div>
+            <div id="bdo-qr" style="display:none; text-align:center;">
+                <p style="font-weight:bold;">Scan to Pay via BDO PAY</p>
+                <img src="https://i.imgur.com/SFvZctJ.jpeg" style="width:200px; border-radius:15px; border:3px solid var(--dark);">
+                <p style="font-size:0.7rem; word-break:break-all; margin-top:5px;">https://i.imgur.com/SFvZctJ.jpeg</p>
+            </div>
+        </div>
+
+        <input type="text" id="payment-ref" placeholder="Reference Number">
+        <div class="item-card">
+            <h3>TOTAL: ₱<span id="checkout-total">0.00</span></h3>
+            <button class="btn-main" onclick="placeOrder()">✅ PLACE ORDER</button>
+        </div>
+        <button class="btn-main btn-secondary" onclick="showPage('page-cart')">🔙 BACK</button>
+    </div>
+
+    <!-- Admin Pages -->
+    <div id="page-admin-login" class="container">
+        <h2>Sweet Login</h2>
+        <input type="email" id="admin-email" placeholder="Email">
+        <input type="password" id="admin-pass" placeholder="Password">
+        <button class="btn-main" onclick="adminAuth()">LOGIN 👑</button>
+        <button class="btn-main btn-secondary" onclick="showPage('page-home')">🔙 BACK</button>
+    </div>
+
+    <div id="page-admin-panel" class="container">
+        <h2>Dashboard 👑</h2>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+            <button class="btn-main" style="padding:10px; font-size:0.8rem;" onclick="toggleAdminView('upload')">➕ UPLOAD</button>
+            <button class="btn-main" style="padding:10px; font-size:0.8rem;" onclick="toggleAdminView('items')">📦 PRODUCTS</button>
+            <button class="btn-main" style="padding:10px; font-size:0.8rem;" onclick="toggleAdminView('orders')">📋 ORDERS</button>
+        </div>
+
+        <div id="admin-upload" style="display:none;">
+            <h3 id="u-title">Add New Product</h3>
+            <input type="hidden" id="edit-id">
+            <select id="p-category">
+                <option>Tarot Sale 99</option>
+                <option>Tarot Sale 199</option>
+                <option>Tarot Sale Original Price</option>
+                <option>InSenso Sale</option>
+                <option>Candle Sale</option>
+            </select>
+            <input type="text" id="p-name" placeholder="Name">
+            <input type="number" id="p-price" placeholder="Price">
+            <input type="number" id="p-fee" placeholder="Fee (Extra charge)">
+            <input type="text" id="p-img-url" placeholder="Image URL">
+            <input type="text" id="p-size" placeholder="Sizes (e.g. Small, Large)">
+            <input type="text" id="p-color" placeholder="Colors (e.g. Red, Blue)">
+            <button class="btn-main" id="u-btn" onclick="uploadProduct()">UPLOAD ✨</button>
+            <button class="btn-main btn-secondary" id="cancel-edit-btn" style="display:none;" onclick="cancelEdit()">CANCEL</button>
+        </div>
+
+        <div id="admin-inventory" style="display:none;"></div>
+        <div id="admin-orders" style="display:none;"></div>
+
+        <button class="btn-main btn-secondary" onclick="showPage('page-home')">🔙 LOGOUT</button>
+    </div>
+
+    <div id="page-status" class="container">
+        <h2>Order Status 📦</h2>
+        <input type="text" id="status-phone" placeholder="Enter Phone Number">
+        <button class="btn-main" onclick="checkOrderStatus()">🔍 CHECK STATUS</button>
+        <div id="status-results" style="margin-top:20px;"></div>
+        <button class="btn-main btn-secondary" onclick="showPage('page-home')">🔙 BACK</button>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAob2Qtmc5En5Hpsr75GfGMwxdPPXw7-J0",
+            authDomain: "kimshysite.firebaseapp.com",
+            projectId: "kimshysite",
+            storageBucket: "kimshysite.firebasestorage.app",
+            messagingSenderId: "911923962841",
+            appId: "1:911923962841:web:2b65ce1c82800afba96fc8"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        let cart = JSON.parse(localStorage.getItem('hatice_cart')) || [];
+        let globalPhotos = {};
+
+        // Utility functions
+        function startLoading(t) {
+            document.getElementById('loading-text').innerText = t;
+            document.getElementById('loading-overlay').style.display = 'flex';
+        }
+        function endLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }
+        function showToast(m) {
+            const t = document.getElementById('success-toast');
+            t.innerText = m;
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 2500);
+        }
+        function showError(m) {
+            document.getElementById('error-msg').innerText = m;
+            document.getElementById('error-modal').style.display = 'flex';
+        }
+        function closeError() {
+            document.getElementById('error-modal').style.display = 'none';
+        }
+
+        // Page navigation
+        function showPage(id) {
+            document.querySelectorAll('.container').forEach(c => c.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if(id === 'page-shop') loadProducts();
+            if(id === 'page-cart') updateCartUI();
+            if(id === 'page-checkout') {
+                updateCheckoutSummary();
+                updatePaymentDisplay();
+            }
+            if(id === 'page-orders') loadAdminOrders();
+            window.scrollTo(0,0);
+        }
+
+        // Load products
+        function loadProducts() {
+            const container = document.getElementById('shop-items');
+            const cat = document.getElementById('shop-category').value;
+            const search = document.getElementById('shop-search').value.toLowerCase();
+            container.innerHTML = "<p style='text-align:center;'>Fetching treats... 🍬</p>";
+            let query = db.collection("products");
+            if(cat !== "All") query = query.where("category", "==", cat);
+            query.get().then(snap => {
+                container.innerHTML = "";
+                snap.forEach(doc => {
+                    const p = doc.data();
+                    if(p.isVisible === false) return;
+                    if(p.name.toLowerCase().includes(search)) {
+                        globalPhotos[doc.id] = p.image;
+                        const sOps = (p.size || "Standard").split(',').map(s => `<option>${s.trim()}</option>`).join('');
+                        const cOps = (p.color || "Original").split(',').map(c => `<option>${c.trim()}</option>`).join('');
+                        container.innerHTML += `
+                            <div class="item-card">
+                                <img src="${p.image}">
+                                <h3>${p.name}</h3>
+                                <p>₱${p.price.toFixed(2)} (+₱${p.fee} fee)</p>
+                                <div style="text-align:left;">
+                                    <label>Size:</label>
+                                    <select id="s-${doc.id}">${sOps}</select>
+                                    <label>Color:</label>
+                                    <select id="c-${doc.id}">${cOps}</select>
+                                    <label>Qty:</label>
+                                    <input type="number" id="q-${doc.id}" value="1" min="1" style="width:60px;">
+                                </div>
+                                <button class="btn-main" onclick="addToBasketDirect('${doc.id}', '${p.name}', ${p.price}, ${p.fee}, '${p.image}')">🍭 ADD TO BASKET</button>
+                            </div>`;
+                    }
+                });
+            });
+        }
+
+        function addToBasketDirect(id, name, price, fee, img) {
+            const qty = parseInt(document.getElementById(`q-${id}`).value);
+            cart.push({ itemId: id, name, fee: price + fee, sz: document.getElementById(`s-${id}`).value, cl: document.getElementById(`c-${id}`).value, qty, img });
+            updateCartUI();
+            showToast(`Added ${qty} ${name}! 🎀`);
+        }
+
+        function updateCartUI() {
+            const div = document.getElementById('cart-items');
+            let total = 0;
+            div.innerHTML = cart.length ? cart.map((i, idx) => {
+                total += i.fee * i.qty;
+                return `<div class="order-row" style="display:flex; align-items:center;">
+                    <img src="${i.img}" class="cart-thumbnail">
+                    <div style="flex-grow:1;"><b>${i.name}</b><br><small>${i.sz} | ${i.cl} (x${i.qty})</small></div>
+                    <button onclick="cart.splice(${idx},1); updateCartUI();" style="border:none; background:none; color:red; cursor:pointer;">✖</button>
+                </div>`;
+            }).join('') : "<p style='text-align:center;'>Basket empty! 🧸</p>";
+            document.getElementById('cart-total').innerText = total.toFixed(2);
+            document.getElementById('floating-cart-count').innerText = cart.length;
+            localStorage.setItem('hatice_cart', JSON.stringify(cart));
+        }
+
+        function updateCheckoutSummary() {
+            let total = 0;
+            cart.forEach(i => total += i.fee * i.qty);
+            document.getElementById('checkout-total').innerText = total.toFixed(2);
+            document.getElementById('checkout-summary').innerHTML = cart.map(i => `<div style="display:flex; align-items:center; margin-bottom:10px;"><img src="${i.img}" class="cart-thumbnail"><small>${i.name} x${i.qty} - ₱${(i.fee*i.qty).toFixed(2)}</small></div>`).join('');
+        }
+
+        function adminAuth() {
+            startLoading("Opening Vault... 👑");
+            firebase.auth().signInWithEmailAndPassword(document.getElementById('admin-email').value, document.getElementById('admin-pass').value)
+                .then(() => showPage('page-admin-panel'))
+                .catch(() => showError("Wrong details! 🍭"))
+                .finally(() => endLoading());
+        }
+
+        function updatePaymentDisplay() {
+            const method = document.getElementById('payment-method-select').value;
+            document.getElementById('gcash-qr').style.display = (method === 'GCASH') ? 'block' : 'none';
+            document.getElementById('gotyme-qr').style.display = (method === 'GOTYME') ? 'block' : 'none';
+            document.getElementById('bdo-qr').style.display = (method === 'BDO') ? 'block' : 'none';
+        }
+
+        function placeOrder() {
+            const requiredFields = ['cust-fullname','cust-phone','cust-province','cust-municipality','cust-barangay','cust-address','cust-zip'];
+            for(let f of requiredFields) {
+                if(!document.getElementById(f).value.trim()) {
+                    alert("Please fill all customer info fields!");
+                    return;
+                }
+            }
+            const paymentRef = document.getElementById('payment-ref').value.trim();
+            if(!paymentRef) {
+                alert("Please enter payment reference number!");
+                return;
+            }
+
+            const customerData = {
+                name: document.getElementById('cust-fullname').value,
+                number: document.getElementById('cust-phone').value,
+                province: document.getElementById('cust-province').value,
+                municipality: document.getElementById('cust-municipality').value,
+                barangay: document.getElementById('cust-barangay').value,
+                address: document.getElementById('cust-address').value,
+                zip: document.getElementById('cust-zip').value,
+            };
+
+            // Collect only non-empty tarot forms
+            let tarotForms = [];
+            for(let i=1; i<=3; i++){
+                const name = document.getElementById(`tarot${i}-name`).value.trim();
+                const bday = document.getElementById(`tarot${i}-birthdate`).value.trim();
+                const q = document.getElementById(`tarot${i}-question`).value.trim();
+                if(name) {
+                    tarotForms.push({ name, birthdate: bday, question: q });
+                }
+            }
+
+            const paymentMethod = document.getElementById('payment-method-select').value;
+            startLoading("Packing your treats... 📦");
+            const orderData = {
+                ...customerData,
+                items: cart,
+                total: document.getElementById('checkout-total').innerText,
+                paymentMethod,
+                refNumber: paymentRef,
+                status: "Pending",
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                tarotForms,
+                hiddenByAdmin: false,
+                hiddenByCustomer: false,
+            };
+
+            db.collection("orders").add(orderData).then(() => {
+                cart = [];
+                updateCartUI();
+                setTimeout(() => {
+                    endLoading();
+                    alert("Order Placed Successfully! 💖");
+                    showPage('page-home');
+                }, 1500);
+            });
+        }
+
+        function toggleAdminView(view) {
+            document.getElementById('admin-upload').style.display = (view === 'upload' ? 'block' : 'none');
+            document.getElementById('admin-inventory').style.display = (view === 'items' ? 'block' : 'none');
+            document.getElementById('admin-orders').style.display = (view === 'orders' ? 'block' : 'none');
+            if(view === 'items') loadAdminInventory();
+            if(view === 'orders') loadAdminOrders();
+        }
+
+        function loadAdminInventory() {
+            const div = document.getElementById('admin-inventory');
+            div.innerHTML = "<h3>Inventory</h3>";
+            db.collection("products").orderBy("timestamp", "desc").get().then(snap => {
+                snap.docs.forEach(doc => {
+                    const p = doc.data();
+                    if(p.isVisible === false) return;
+                    div.innerHTML += `
+                        <div class="order-row" style="display:flex; align-items:center;">
+                            <img src="${p.image}" class="cart-thumbnail" style="width:50px; height:50px;">
+                            <div style="flex-grow:1;">
+                                <b>${p.name}</b><br>₱${p.price}
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:5px;">
+                                <button class="btn-main" onclick="editProduct('${doc.id}')">EDIT</button>
+                                <button onclick="toggleVisibility('${doc.id}', ${p.isVisible!==false})" style="border:none; background:none; font-size:0.7rem; cursor:pointer;">${p.isVisible===false?'SHOW':'HIDE'}</button>
+                                <button onclick="deleteProduct('${doc.id}')" style="color:red; border:none; background:none; font-size:0.7rem; cursor:pointer;">DEL</button>
+                            </div>
+                        </div>`;
+                });
+            });
+        }
+
+        function toggleVisibility(id, cur) {
+            db.collection("products").doc(id).update({ isVisible: !cur }).then(() => loadAdminInventory());
+        }
+
+        function deleteProduct(id) {
+            if(confirm("Delete treat?")) {
+                db.collection('products').doc(id).delete().then(()=>loadAdminInventory());
+            }
+        }
+
+        function editProduct(id) {
+            db.collection("products").doc(id).get().then(doc => {
+                const p = doc.data();
+                document.getElementById('edit-id').value = id;
+                document.getElementById('p-name').value = p.name;
+                document.getElementById('p-price').value = p.price;
+                document.getElementById('p-fee').value = p.fee;
+                document.getElementById('p-img-url').value = p.image;
+                document.getElementById('p-size').value = p.size;
+                document.getElementById('p-color').value = p.color;
+                document.getElementById('p-category').value = p.category;
+                document.getElementById('u-title').innerText = "Editing: " + p.name;
+                document.getElementById('u-btn').innerText = "SAVE CHANGES";
+                document.getElementById('cancel-edit-btn').style.display = "block";
+                toggleAdminView('upload');
+                window.scrollTo(0,0);
+            });
+        }
+
+        function cancelEdit() {
+            document.getElementById('edit-id').value = "";
+            document.getElementById('u-title').innerText = "Add New Product";
+            document.getElementById('u-btn').innerText = "UPLOAD ✨";
+            document.getElementById('cancel-edit-btn').style.display = "none";
+            toggleAdminView('items');
+        }
+
+        function uploadProduct() {
+            startLoading("Saving... ✨");
+            const eid = document.getElementById('edit-id').value;
+            const data = {
+                category: document.getElementById('p-category').value,
+                name: document.getElementById('p-name').value,
+                price: parseFloat(document.getElementById('p-price').value),
+                fee: parseFloat(document.getElementById('p-fee').value) || 0,
+                size: document.getElementById('p-size').value,
+                color: document.getElementById('p-color').value,
+                image: document.getElementById('p-img-url').value,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            const task = eid ? db.collection("products").doc(eid).update(data) : db.collection("products").add({ ...data, isVisible: true });
+            task.then(() => {
+                endLoading();
+                showToast("Success! ✨");
+                cancelEdit();
+            }).catch(() => {
+                endLoading();
+                showError("Unauthorized! 🚫");
+            });
+        }
+
+        function loadAdminOrders() {
+            const div = document.getElementById('admin-orders');
+            div.innerHTML = "<h3>All Orders</h3>";
+            db.collection("orders").orderBy("timestamp", "desc").get().then(snap => {
+                snap.docs.forEach(doc => {
+                    const o = doc.data();
+                    if(o.hiddenByAdmin) return;
+                    const itemsHTML = o.items.map(i => `<div style="display:flex; align-items:center; margin-top:5px; border-top:1px solid #eee;"><img src="${i.img}" class="cart-thumbnail" style="width:30px; height:30px;"><small>${i.name} (${i.sz}/${i.cl}) x${i.qty}</small></div>`).join('');
+                    let approvalSection = "";
+                    if(o.status !== "Done") {
+                        approvalSection = `
+                            <div style="margin-top:10px; border-top:2px dashed var(--serenity); padding-top:10px;">
+                                <label>Mandatory Note:</label><input type="text" id="note-${doc.id}" placeholder="Note for customer" style="width:100%;">
+                                <label>Mandatory Image URL:</label><input type="text" id="aimg-${doc.id}" placeholder="Proof URL" style="width:100%;">
+                                <button onclick="approveOrder('${doc.id}')" class="btn-main" style="padding:10px; font-size:0.8rem;">COMPLETE & APPROVE ✨</button>
+                            </div>`;
+                    } else {
+                        approvalSection = `
+                            <div style="margin-top:10px; padding:10px; background:#f0f0f0; border-radius:15px; text-align:center;">
+                                <b style="color:green;">✅ ORDER COMPLETED</b><br>
+                                <button onclick="adminCleanHistory('${doc.id}')" style="background:none; border:none; color:red; cursor:pointer; font-size:0.7rem; margin-top:5px;">REMOVE FROM ADMIN VIEW (Archive)</button>
+                            </div>`;
+                    }
+                    div.innerHTML += `<div class="order-row" style="font-size:0.8rem;">
+                        <b>CUSTOMER INFO:</b><br>${o.name} (${o.number})<br>Ref: ${o.refNumber}<br>
+                        <b>ADDRESS:</b><br>${o.province}, ${o.municipality}, ${o.barangay} (${o.zip})<br>
+                        <b>Total:</b> ₱${o.total} | <b>Status:</b> ${o.status}<br>
+                        ${itemsHTML}
+                        ${approvalSection}
+                        <button class="btn-main" style="margin-top:10px;" onclick="viewCustomerForms('${doc.id}')">View Filled Forms</button>
+                    </div>`;
+                });
+            });
+        }
+
+        function viewCustomerForms(orderId) {
+            db.collection("orders").doc(orderId).get().then(doc => {
+                const data = doc.data();
+                if(!data || !data.tarotForms || data.tarotForms.length === 0) {
+                    alert("No forms submitted with this order.");
+                    return;
+                }
+                let msg = "Customer Submitted Forms:\n\n";
+                data.tarotForms.forEach((f, i) => {
+                    msg += `Form ${i+1}:\nName: ${f.name}\nBirthdate: ${f.birthdate}\nQuestion: ${f.question}\n\n`;
+                });
+                alert(msg);
+            });
+        }
+
+        function approveOrder(id) {
+            const n = document.getElementById(`note-${id}`).value.trim();
+            const i = document.getElementById(`aimg-${id}`).value.trim();
+            if(!n || !i) return alert("Note and Image URL are MANDATORY!");
+            startLoading("Approving... 🎀");
+            db.collection("orders").doc(id).update({ status: "Done", adminNote: n, adminImage: i }).then(() => {
+                endLoading();
+                showToast("Approved! 💖");
+                loadAdminOrders();
+            });
+        }
+
+        function adminCleanHistory(id) {
+            if(confirm("Hide this from your Dashboard? Customer can still see it.")) {
+                db.collection("orders").doc(id).update({ hiddenByAdmin: true }).then(() => loadAdminOrders());
+            }
+        }
+
+        function checkOrderStatus() {
+            const phone = document.getElementById('status-phone').value.trim();
+            if(!phone) return alert("Enter phone number!");
+            startLoading("Searching... 🔍");
+            db.collection("orders").where("number", "==", phone).get().then(snap => {
+                endLoading();
+                document.getElementById('status-results').innerHTML = snap.docs.length ? snap.docs.map(doc => {
+                    const o = doc.data();
+                    if(o.hiddenByCustomer) return '';
+                    const itemsHTML = o.items.map(i => `<div style="display:flex; align-items:center; margin-top:5px;"><img src="${i.img}" class="cart-thumbnail" style="width:35px; height:35px;"><small>${i.name} (x${i.qty})</small></div>`).join('');
+                    let adminSection = "";
+                    if(o.status === "Done") {
+                        adminSection = `
+                            <div style="margin-top:10px; background:var(--custard); padding:10px; border-radius:20px; border:2px solid var(--dark);">
+                                <p><b>Note:</b> ${o.adminNote}</p>
+                                <img src="${o.adminImage}" style="width:100%; border-radius:15px;">
+                                <p style="font-size:0.6rem; word-break:break-word; margin:5px 0;">${o.adminImage}</p>
+                                <button onclick="customerCleanHistory('${doc.id}')" style="background:#FF4D6D; color:white; border:none; padding:10px; border-radius:15px; cursor:pointer; width:100%; font-weight:700;">DELETE FROM MY HISTORY 🗑️</button>
+                            </div>`;
+                    }
+                    return `<div class="order-row">Status: <b>${o.status}</b><br>Ref: ${o.refNumber}<br>${itemsHTML}${adminSection}</div>`;
+                }).join('') : "No orders found.";
+            });
+        }
+
+        function customerCleanHistory(id) {
+            if(confirm("Remove this order from your view? Admin will still have the record.")) {
+                db.collection("orders").doc(id).update({ hiddenByCustomer: true }).then(() => checkOrderStatus());
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateCartUI();
+            updatePaymentDisplay();
+        });
+    </script>
+</body>
+</html>
